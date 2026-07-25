@@ -465,17 +465,7 @@ Control hazards — where a branch, jump, or trap in one slot must redirect the 
 
 ---
 
-## 8. Correctness Considerations
-
-**Absence of combinational loops.** A signal path exists in which a commit decision feeds forwarding availability, which feeds the replay condition, which feeds the next good-path mask, which feeds the good-path (hence commit) decision. The loop does not close, for a structural reason: the commit decision reads only the *top bit* of the mask, and the only mask-term patterns that clear that bit belong to conditions consumed three cycles deep — traps and non-pipelined bubbles — whose triggers are flip-flopped. The replay and jump terms that carry the same-cycle path clear only the lower mask bits. Every new slot-1 term was verified to respect this separation.
-
-**Replay timing.** The replay condition is consumed one cycle deep, so a re-fetched instruction trails the original group by precisely two transactions. At its second operand read it finds the original slot 0 at forwarding depth two — squarely within the three-deep network. If the original slot 0 was itself a load, the forward carries a pending indication and the ordinary pending/replay loop takes over.
-
-**Cross-slot redirect races.** Cases where the two slots trigger conditions at different stages were traced explicitly. For example, if slot 1 replays in cycle *T* and slot 0 proves to be a mispredicted-taken branch in cycle *T+1*, the replay clears only strictly-younger mask bits so the group survives; the mispredict then fires with higher priority in the next cycle and its mask term kills the replay-path fetch. Slot 0 commits, slot 1 is correctly discarded, and fetch resumes at the branch target — with no special-case logic required.
-
----
-
-## 9. Test Program
+## 8. Test Program
 
 The design is exercised by a **bubble sort of eight words held in data memory**, chosen because its inner loop reads two words, compares them, and writes both back on every iteration — making it a thorough test of the shared single-port data memory alongside the register file and control flow.
 
@@ -502,21 +492,7 @@ The harness asserts `*passed` when the final always-taken branch commits in eith
 
 ---
 
-## 10. Repository Contents
-
-| Path | Description |
-|---|---|
-| `DUAL_ISSUE.tlv` | The complete dual-issue superscalar core in TL-Verilog, ready to paste into Makerchip. |
-| `docs/Dual_Issue_Superscalar_Report.pdf` | Full project report: baseline analysis, architecture, implementation, hazard treatment, correctness analysis. |
-| `docs/Dual_Issue_Superscalar_Report.tex` | LaTeX source of the report. |
-| `baseline/warpv_single_issue.tlv` | The unmodified single-issue core as emitted by the WARP-V generator, retained for comparison. |
-| `README.md` | This document. |
-
-*(Adjust the paths above to match the final repository layout.)*
-
----
-
-## 11. Running the Design
+## 9. Running the Design
 
 1. Open [makerchip.com](https://makerchip.com) and create a new project.
 2. Paste the contents of `DUAL_ISSUE.tlv` into the editor.
@@ -538,7 +514,7 @@ The visualisation highlights slot 0 in cyan and slot 1 in green, with returning 
 
 ---
 
-## 12. Limitations and Future Improvements
+## 10. Limitations and Future Improvements
 
 - **No same-cycle slot-0-to-slot-1 forwarding.** Dependent instruction pairs replay rather than forward. Introducing an early result and forwarding it into slot 1 would raise IPC on dependent code at the cost of clock frequency.
 - **Conservative write-after-write handling.** All same-register write pairs replay, though only load-shadowed pairs strictly require it. Gating the check on "slot 0 will second-issue" would allow ALU write pairs to issue together, with the register file's priority ensuring correctness.
@@ -548,7 +524,7 @@ The visualisation highlights slot 0 in cyan and slot 1 in green, with returning 
 
 ---
 
-## 13. References and Credits
+## 11. References and Credits
 
 - **TL-Verilog** and the **SandPiper** toolchain — [Redwood EDA](https://www.redwoodeda.com/)
 - **WARP-V** RISC-V core generator — [github.com/stevehoover/warp-v](https://github.com/stevehoover/warp-v), created by Steve Hoover, Redwood EDA
