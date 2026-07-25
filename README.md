@@ -6,7 +6,7 @@ A two-wide, in-order **superscalar RISC-V processor** built by extending a singl
 
 
 <p align="center">
-  <img src="images/Superscalar.png" alt="Viz.js for Dual-issue superscalar RISC-V processor" width="850">
+  <img src="images/Superscalar.png" alt="Processor Architecture" width="850">
 </p>
 
 ---
@@ -20,13 +20,10 @@ A two-wide, in-order **superscalar RISC-V processor** built by extending a singl
 5. [Dual-Issue Architecture](#5-dual-issue-architecture)
 6. [Implementation](#6-implementation)
 7. [Hazards Introduced by Dual Issue](#7-hazards-introduced-by-dual-issue)
-8. [Correctness Considerations](#8-correctness-considerations)
-9. [Test Program](#9-test-program)
-10. [Repository Contents](#10-repository-contents)
-11. [Running the Design](#11-running-the-design)
-12. [Verification Status](#12-verification-status)
-13. [Limitations and Future Improvements](#13-limitations-and-future-improvements)
-14. [References and Credits](#14-references-and-credits)
+8. [Test Program](#8-test-program)
+9. [Running the Design](#9-running-the-design)
+10. [Limitations and Future Improvements](#10-limitations-and-future-improvements)
+11. [References and Credits](#11-references-and-credits)
 
 ---
 
