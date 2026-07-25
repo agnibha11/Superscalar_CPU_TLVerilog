@@ -6,7 +6,7 @@ A two-wide, in-order **superscalar RISC-V processor** built by extending a singl
 
 
 <p align="center">
-  <img src="images/Superscalar.png" alt="Dual-issue superscalar RISC-V processor architecture" width="850">
+  <img src="images/Superscalar.png" alt="Viz.js for Dual-issue superscalar RISC-V processor" width="850">
 </p>
 
 ---
