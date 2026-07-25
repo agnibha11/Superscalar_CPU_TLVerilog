@@ -538,15 +538,7 @@ The visualisation highlights slot 0 in cyan and slot 1 in green, with returning 
 
 ---
 
-## 12. Verification Status
-
-The design has been analysed and desk-checked in depth against the baseline's proven idioms, and the test program has been verified functionally at the ISA level. Compilation and simulation in Makerchip is the appropriate final confirmation before the design is considered signed off.
-
-The constructs meriting first attention if the toolchain reports an issue — each of which follows a pattern proven elsewhere in WARP-V — are the pipeline-prefixed references carrying an alignment, the cross-slot references between the two instances, and the use of the instance index within arithmetic expressions.
-
----
-
-## 13. Limitations and Future Improvements
+## 12. Limitations and Future Improvements
 
 - **No same-cycle slot-0-to-slot-1 forwarding.** Dependent instruction pairs replay rather than forward. Introducing an early result and forwarding it into slot 1 would raise IPC on dependent code at the cost of clock frequency.
 - **Conservative write-after-write handling.** All same-register write pairs replay, though only load-shadowed pairs strictly require it. Gating the check on "slot 0 will second-issue" would allow ALU write pairs to issue together, with the register file's priority ensuring correctness.
@@ -556,7 +548,7 @@ The constructs meriting first attention if the toolchain reports an issue — ea
 
 ---
 
-## 14. References and Credits
+## 13. References and Credits
 
 - **TL-Verilog** and the **SandPiper** toolchain — [Redwood EDA](https://www.redwoodeda.com/)
 - **WARP-V** RISC-V core generator — [github.com/stevehoover/warp-v](https://github.com/stevehoover/warp-v), created by Steve Hoover, Redwood EDA
