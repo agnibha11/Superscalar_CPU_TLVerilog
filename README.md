@@ -4,6 +4,11 @@ A two-wide, in-order **superscalar RISC-V processor** built by extending a singl
 
 **ISA:** RV32I + Zicsr counters &nbsp;•&nbsp; **Issue width:** 2 (in-order) &nbsp;•&nbsp; **Language:** TL-Verilog &nbsp;•&nbsp; **Platform:** [Makerchip IDE](https://makerchip.com)
 
+
+<p align="center">
+  <img src="images/Superscalar.png" alt="Dual-issue superscalar RISC-V processor architecture" width="850">
+</p>
+
 ---
 
 ## Table of Contents
