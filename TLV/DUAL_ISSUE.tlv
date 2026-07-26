@@ -64,6 +64,10 @@
          $jump_cond_1              = (/instr[1]>>2$jump && !(1'b0 || /instr[1]>>2$no_fetch || /instr[1]>>2$second_issue || /instr[1]>>2$replay) && (! >>2$slot0_redir_e3) && $GoodPathMask[2]);
          $replay_cond_0            = (/instr[0]>>1$replay && !(1'b0 || /instr[0]>>1$no_fetch || /instr[0]>>1$second_issue) && $GoodPathMask[1]);
          $replay_cond_1            = (/instr[1]>>1$replay && !(1'b0 || /instr[1]>>1$no_fetch || /instr[1]>>1$second_issue) && (! >>1$slot0_redir_e2) && $GoodPathMask[1]);
+         // Two-bit predictor: a predicted-taken branch redirects fetch to the branch
+         // target at stage 2 (one stage earlier than a mispredict, which resolves at 3).
+         $pred_taken_branch_cond_0 = (/instr[0]>>1$pred_taken_branch && !(1'b0 || /instr[0]>>1$no_fetch || /instr[0]>>1$second_issue || /instr[0]>>1$replay) && $GoodPathMask[1]);
+         $pred_taken_branch_cond_1 = (/instr[1]>>1$pred_taken_branch && !(1'b0 || /instr[1]>>1$no_fetch || /instr[1]>>1$second_issue || /instr[1]>>1$replay) && (! >>1$slot0_redir_e2) && $GoodPathMask[1]);
          $second_issue_cond        = (/instr[0]>>0$second_issue && !(1'b0 || /instr[0]>>0$no_fetch) && $GoodPathMask[0]);
          $no_fetch_cond            = (/instr[0]>>0$no_fetch && !(1'b0) && $GoodPathMask[0]);
          
@@ -81,6 +85,7 @@
               & ($non_pipelined_cond_0     ? 4'b1000 : 4'b1111)
               & ($aborting_trap_cond_0     ? 4'b0000 : 4'b1111)
               & ($non_aborting_trap_cond_0 ? 4'b1000 : 4'b1111)
+              & ($pred_taken_branch_cond_0 ? 4'b1110 : 4'b1111)
               // Slot-1-triggered conditions: the group survives (slot 0 must commit), so
               // aborting conditions clear one bit fewer than their slot-0 counterparts.
               & ($replay_cond_1            ? 4'b1110 : 4'b1111)
@@ -89,7 +94,10 @@
               & ($indirect_jump_cond_1     ? 4'b1100 : 4'b1111)
               & ($non_pipelined_cond_1     ? 4'b1000 : 4'b1111)
               & ($aborting_trap_cond_1     ? 4'b1000 : 4'b1111)
-              & ($non_aborting_trap_cond_1 ? 4'b1000 : 4'b1111),
+              & ($non_aborting_trap_cond_1 ? 4'b1000 : 4'b1111)
+              // A predicted-taken branch is NON-aborting (the branch itself commits), so
+              // for either slot it clears only the younger group -- same term as slot 0.
+              & ($pred_taken_branch_cond_1 ? 4'b1110 : 4'b1111),
              1'b1}; // Shift in 1'b1 (fetch-valid).
          $GoodPathMask[3+1:0] <=
             <<1$reset ? 5'b0 :  // All bad-path (through self) on reset (next mask based on next reset).
@@ -112,6 +120,8 @@
             $jump_cond_1              ? {/instr[1]>>2$jump_target, 1'b0} :
             $replay_cond_0            ? {/instr[0]>>1$pc, 1'b0} :   // Refetch the group from slot 0.
             $replay_cond_1            ? {/instr[1]>>1$pc, 1'b0} :   // Refetch from slot 1's address: it becomes slot 0 of the next group.
+            $pred_taken_branch_cond_0 ? {/instr[0]>>1$branch_target, 1'b0} :   // Speculatively follow slot 0's predicted-taken branch.
+            $pred_taken_branch_cond_1 ? {/instr[1]>>1$branch_target, 1'b0} :   // Same for slot 1 (only if slot 0 did not redirect).
             $second_issue_cond        ? {>>0$Pc, 1'b0} :
             $no_fetch_cond            ? {>>0$Pc, 1'b1} :
                        {$Pc + 32'd8, 1'b0};   // Default: sequential fetch of the next group of two.
@@ -120,7 +130,7 @@
          `BOGUS_USE($next_no_fetch)
       @2
          //Checkpoint 2
-         $slot0_redir_e2 = /instr[0]$second_issue || /instr[0]$replay || /instr[0]$jump || /instr[0]$indirect_jump || /instr[0]$non_pipelined;
+         $slot0_redir_e2 = /instr[0]$second_issue || /instr[0]$replay || /instr[0]$jump || /instr[0]$indirect_jump || /instr[0]$non_pipelined || /instr[0]$pred_taken_branch;
          
          // Bypass-source availability, shared by both consuming slots.
          $bypass_avail1_s0 = /instr[0]>>1$commit_dest_reg && ($GoodPathMask[1] || /instr[0]>>1$commit_second_issue);
@@ -137,6 +147,35 @@
                       (/instr[1]$good_taken_branch && (/instr[1]$pc == 32'd104));
          *passed = ! $reset && $pass_cond;
          *failed = 1'b0;
+         
+         // ==================================================================
+         // TWO-BIT SATURATING BRANCH PREDICTOR (hoisted from /instr to |fetch).
+         // One counter serves the whole core, exactly as in the single-issue
+         // baseline. Both slots can commit a branch in the same cycle, so the
+         // two saturating steps are applied IN SERIES -- slot 0 (older) first,
+         // then slot 1 -- which reproduces the baseline's "one update per
+         // committed branch, in program order" semantics. The counter is only
+         // two bits wide, so chaining two steps costs almost nothing.
+         //   2'b00 strongly not-taken | 2'b01 weakly not-taken
+         //   2'b10 weakly taken       | 2'b11 strongly taken
+         // ==================================================================
+         $bp_upd_0 = /instr[0]$branch && /instr[0]$commit;   // Slot 0 retires a branch.
+         $bp_upd_1 = /instr[1]$branch && /instr[1]$commit;   // Slot 1 retires a branch.
+         $branch_or_reset = $bp_upd_0 || $bp_upd_1 || $reset;
+         // Step 1: apply the older slot's outcome to the current state.
+         $bp_state_0[1:0] =
+            ! $bp_upd_0     ? $BranchState :
+            /instr[0]$taken ? (($BranchState == 2'b11) ? 2'b11 : $BranchState + 2'b1) :
+                              (($BranchState == 2'b00) ? 2'b00 : $BranchState - 2'b1);
+         // Step 2: apply the younger slot's outcome to the result of step 1.
+         $bp_state_1[1:0] =
+            ! $bp_upd_1     ? $bp_state_0 :
+            /instr[1]$taken ? (($bp_state_0 == 2'b11) ? 2'b11 : $bp_state_0 + 2'b1) :
+                              (($bp_state_0 == 2'b00) ? 2'b00 : $bp_state_0 - 2'b1);
+         ?$branch_or_reset
+            $BranchState[1:0] <=
+               $reset ? 2'b01 :   // Weakly not-taken out of reset.
+               $bp_state_1;
       
       //Checkpoint 3
       /instr[1:0]
@@ -335,9 +374,14 @@
             $csr_trap = $is_csr_instr && ! $valid_csr;
          
          // Instantiate the branch predictor.
+         // The saturating counter itself is shared machine state and lives in the
+         // |fetch scope (see "TWO-BIT SATURATING BRANCH PREDICTOR" above). Each slot
+         // reads that one counter to form its own prediction, so both slots of a
+         // group predict from the same history, as a single-issue core would.
          
          @2
-            $pred_taken = 1'b0;
+            ?$branch
+               $pred_taken = |fetch>>2$BranchState[1];   // MSB of the 2-bit counter.
       
          @2
             $non_pipelined = $div_mul  ;
@@ -656,6 +700,9 @@
                 ({32{$is_csrrci_instr}} & $csrrci_rslt);
          
       
+         @2
+            // Redirect fetch to the branch target when the predictor says taken.
+            $pred_taken_branch = $pred_taken && $branch;
          @3
             // Control
 
@@ -666,9 +713,10 @@
             $mispred_branch = $branch && ! ($conditional_branch && ($taken == $pred_taken));
             ?$valid_decode_branch
                $branch_redir_pc[31:0] =
-                  // If fallthrough predictor, branch mispred always redirects taken, otherwise PC+1 for not-taken.
-                  
-                  $branch_target;
+                  // With the two-bit predictor a mispredict can go either way: a branch
+                  // predicted taken but resolved not-taken must redirect to PC+4.
+                  (! $taken) ? $pc_inc :
+                               $branch_target;
             $trap_target[31:0] = $replay_trap ? $pc : {{30{1'b1}}, 2'b0};  // TODO: What should this be? Using ones to terminate test for now.
             // Determine whether the instruction should commit it's result.
             //
